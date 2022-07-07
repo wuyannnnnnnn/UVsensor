@@ -9,6 +9,34 @@
 #include "UVsensor.h"
 #include <Wire.h>
 
+UVTask::UVTask(SemaphoreHandle_t *twi_comms_lock) :
+ twi_comms_lock(twi_comms_lock){}
+
+
+// bool reset;
+TaskHandle_t UVTask::xThisTask = NULL;
+
+void UVTask::vISR_UV () {
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  configASSERT( UVTask::xThisTask != NULL );
+  vTaskNotifyGiveFromISR( UVTask::xThisTask , &xHigherPriorityTaskWoken) ;
+  portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
+
+void UVTask::init() {
+  if (NULL == xThisTask) {UVTask::xThisTask = xTaskGetCurrentTaskHandle();}
+  
+  // initialize device
+  DBUGLN(F("Initializing UV sensor..."));
+  xSemaphoreTake(*twi_comms_lock, portMAX_DELAY);
+  sensor.begin();
+  sensor.readPower();
+  sensor.readInterrupt();  // clear any rtc interrupt flags
+  sensor.readDataStatus(); 
+  xSemaphoreGive(*twi_comms_lock);
+  isInitialised = true;
+}
+
 
 void UVTask::printALS(uint32_t myALS){
   DBUG('ALS is ');
@@ -22,83 +50,123 @@ void UVTask::printUVI(uint32_t myUVI){
   DBUGLN();
 }
 
-// void UVTask::vTaskALS( void *pvParameters )
+
+// void UVTask::loopALS()
 // {
-// const char *pcTaskName = "ALS data is \r\n";
-// volatile uint32_t ul; /* volatile to ensure ul is not optimized away. */
-//  /* As per most tasks, this task is implemented in an infinite loop. */
-//  for( ;; )
-//  {
-//     ul = sensor.readALS();
-
-//     /* Print out the name of this task. */
-//     Serial.printf( "%s", pcTaskName );
-//     Serial.println(ul);
-
+// if (false == sensor.readALS()) {
+//   Serial.println("ALS Read Failed");
+//   sensor.begin();
+// }
+// else {
+//          Serial.println(sensor.readALS());
 //     /* Delay for a minute. */
-//     delay(60);
-//  }
+//     //delay(60);
+//   // }
+// }
 // }
 
-// void UVTask::vTaskUVI( void *pvParameters )
-// {
-// const char *pcTaskName = "UVI data is \r\n";
-// volatile uint32_t ul; /* volatile to ensure ul is not optimized away. */
-//  /* As per most tasks, this task is implemented in an infinite loop. */
-//  for( ;; )
-//  {
-//     ul = sensor.readUVI();
+// UVTask::data=sensor.readALS();
+// void TaskA( void *pvParameters )  
+// {  
+//     int16_t SendNum = sensor.readALS(); 
+//     for( ;; )  
+//     {  
+//         vTaskDelay( 2000/portTICK_RATE_MS );  
+//         /* 向队列中填充内容 */  
+//         xQueueSend( xQueue, ( void* )&SendNum, 0 );  
+//         SendNum++;  
+//     }  
+// }  
+// void TaskB( void *pvParameters )  
+// {  
+//     int16_t ReceiveNum = 0;  
+//     for( ;; )  
+//     {  
+//         /* 从队列中获取内容 */  
+//         if( xQueueReceive( xQueue, &ReceiveNum, 100/portTICK_RATE_MS ) == pdPASS)  
+//         {  
+//             Serial.println(ReceiveNum);  
+//         }  
+//     }  
+// }  
 
-//     /* Print out the name of this task. */
-//     Serial.printf( "%s", pcTaskName );
-//     Serial.println(ul);
-
-//     /* Delay for a minute. */
-//     delay(60);
-//  }
+// void UVTask::loopALS(void)
+// {  
+//     /* 建立任务 */  
+//     xTaskCreate( TaskA, "TaskA", 1000,  
+//                            ( void * )  100, 1, NULL );  
+//     xTaskCreate( TaskB,  "TaskB", 1000,  
+//                             ( void * ) 1000, 2, NULL );  
+//     /* 启动OS */  
+//     vTaskStartScheduler();  
 // }
+
 
 void UVTask::loopALS()
-{
-if (false == sensor.readALS()) {
-  Serial.println("ALS Read Failed");
-  sensor.begin();
-}
-else {
-         Serial.println(sensor.readALS());
-    /* Delay for a minute. */
-    //delay(60);
-  // }
-}
-}
+ {
+  if (false == isInitialised) init();
+
+  //ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+  for(;;)
+  {
+    //xSemaphoreTake(*twi_comms_lock, portMAX_DELAY);
+    // get read mode
+    DataStatus = sensor.readDataStatus();
+    //xSemaphoreGive(*twi_comms_lock);
+    if (true == DataStatus)
+    {
+      xSemaphoreTake(*twi_comms_lock, portMAX_DELAY);
+      Serial.print("Current ambiant light is: ");
+      Serial.println(sensor.readALS());;
+      xSemaphoreGive(*twi_comms_lock);
+      //delay(1000);
+    }
+    delay(1000);
+  }
+  
+ }
 
 void UVTask::loopUVI()
-{
-// if (false == sensor.readUVI()) sensor.begin();
+ {
+  if (false == isInitialised) init();
 
-if (false == sensor.readUVI()) {
-  Serial.println("UVI Read Failed");
-  sensor.begin();
-}
-else {
+  //ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+   for(;;)
+  {
+    //xSemaphoreTake(*twi_comms_lock, portMAX_DELAY);
+    // get read mode
+    DataStatus = sensor.readDataStatus();
+    //xSemaphoreGive(*twi_comms_lock);
+    if (true == DataStatus)
+    {
+      xSemaphoreTake(*twi_comms_lock, portMAX_DELAY);
+      Serial.print("Current UV light is: ");
+      Serial.println(sensor.readUVI());;
+      xSemaphoreGive(*twi_comms_lock);
+      //delay(1000);
+    }
+    delay(1000);
+  }
+ }
+// void UVTask::loopUVI()
+// {
+// // if (false == sensor.readUVI()) sensor.begin();
 
-//  for( ;; )
-//  {
-  Serial.println(sensor.readUVI());
-    /* Delay for a minute. */
-    //delay(60);
-}
-}
+// // if (false == sensor.readUVI()) {
+// //   Serial.println("UVI Read Failed");
+// //   sensor.begin();
+// // }
+// // else {
+
+//   Serial.println(sensor.readUVI());
+// // }
+// }
 
 void UVTask::setup()
 {
-  sensor.begin();
   sensor.writeEnable(1);
   // delay(100);
   // Serial.println(sensor.readEnable(),HEX);
-  sensor.readPower();
-  sensor.readInterrupt();  // clear any rtc interrupt flags
-  sensor.readDataStatus(); 
   
   #ifdef ENABLE_DEBUG_UVsensor_ALS
   sensor.writeMode(LTR390UV_MODE_ALS);
@@ -107,8 +175,10 @@ void UVTask::setup()
 
   #ifdef ENABLE_DEBUG_UVsensor_UVI
   sensor.writeMode(LTR390UV_MODE_UVI);
-  //sensor.configInterrupt(1, LTR390UV_MODE_UVI, 0);
+  sensor.configInterrupt(1, LTR390UV_MODE_UVI, 0);
   #endif
+
+  //Serial.println(sensor.readMode());
   
   if (sensor.readMode()==LTR390UV_MODE_ALS){
     Serial.println("Mode Set to: ALS");
@@ -117,23 +187,4 @@ void UVTask::setup()
     Serial.println("Mode Set to: UVI");
   }
   else {Serial.println("Mode Set Failed");}
-
-  //xSemaphoreGive(*twi_comms_lock);
-  // Setup rtc interrupt input pin
-  // Attach Interrupt
-
-  // rtc.alarmRepeat(6); // set alarm repeat mode (once per year)
-  // Serial.print("Repeat Mode Set: ");
-  // Serial.println(rtc.alarmRepeat()); // print the alarm mode we just set
-
-  // now = rtc.now(); // get current rtc time
-  // // set alarm for 90 seconds in the future
-  // DateTime alarmTime (now.unixtime()+FRIE_SECONDS);
-  // rtc.alarmSet(alarmTime); 
-  // Serial.print("Alarm Set to: ");
-  // printTime(alarmTime);
-  // rtc.alarmEnable(1); // enable the alarm
-  // Serial.print("readSqwPinMode: ");
-  // Serial.println(rtc.readSqwPinMode());
-  DBUGLN("Finish setting up UV sensor");
 }

@@ -81,7 +81,8 @@ static SPIFlash flash(SS, CYPRESS_FLASH_JEDEC_ID); // 0x0160 is Cypress Flash JE
 
 static Barcode barcode;
 static LedManagerTask led;
-static UVTask sensor;
+//static UVTask sensor;
+static UVTask sensor(&twi_comms_lock);
 static ExtRTCTask rtc(&twi_comms_lock);
 static FlashManagerTask flashManager(&flash, &flash_mem_lock);
 static DeviceManager deviceManager(&flashManager);

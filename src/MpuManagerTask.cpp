@@ -596,14 +596,14 @@ void MpuManagerTask::loop()
         }
         xSemaphoreGive(*twi_comms_lock);
         #ifdef ENABLE_DEBUG_MPU
-          //report6axis();
+          report6axis();
         #endif
         if (true == lifeStyle->getLifeStyleEnableStatus()) {
           lifeStyle->run(ax, ay, az, isLowPowerMode); 
         }
 
         #ifdef ENABLE_DEBUG_MPU
-          //reportYPRG();
+          reportYPRG();
         #endif
 
         if (false == isLowPowerMode && chk_gesture())

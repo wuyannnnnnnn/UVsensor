@@ -425,7 +425,7 @@ uint32_t LTR390UV::readUVI(void){
   byte2 = WIRE._I2C_READ();
   byte3 = WIRE._I2C_READ();
   byte = (byte3 << 16)|(byte2 << 8)|(byte1);
-  Serial.println(byte,HEX);
+  //Serial.println(byte,HEX);
   return ((byte3 << 16)|(byte2 << 8)|(byte1));
 }
 
